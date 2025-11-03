@@ -1,32 +1,54 @@
 package com.mysite.sbb.config;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.context.annotation.Bean;
+import org.springframework.security.web.header.writers.frameoptions.XFrameOptionsHeaderWriter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+
+
+
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
-
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .authorizeHttpRequests(authorize -> authorize
-                // 💡 추가: 질문 목록/상세 보기 등 모두 접근 가능하도록 허용
-                .requestMatchers("/h2-console/**", "/question/**").permitAll() 
-                .anyRequest().authenticated()
-            )
-            // 2. H2 콘솔 접속 경로에 대해 CSRF 보호 무시
-            .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/h2-console/**")
-            )
-            // 3. H2 콘솔이 IFrame에서 동작하도록 X-Frame-Options 헤더를 sameOrigin으로 설정
-            .headers(headers -> headers
-                .frameOptions(frameOptions -> frameOptions.sameOrigin()) 
-            );
+            .authorizeHttpRequests((authorizeHttpRequests) -> authorizeHttpRequests
+            		.requestMatchers(new AntPathRequestMatcher("/**")).permitAll())
+            .csrf((csrf)-> csrf
+            		.ignoringRequestMatchers(new AntPathRequestMatcher("/h2-console/**")))
+            .headers((headers)->headers
+            		.addHeaderWriter(new XFrameOptionsHeaderWriter(
+            				XFrameOptionsHeaderWriter.XFrameOptionsMode.SAMEORIGIN)))
+            .formLogin((formLogin) -> formLogin
+            		.loginPage("/user/login")
+            		.defaultSuccessUrl("/"))
+        	.logout((logout) -> logout
+        		.logoutRequestMatcher(new AntPathRequestMatcher("/user/logout"))
+        		.logoutSuccessUrl("/")
+        		.invalidateHttpSession(true))
+			;
 
         return http.build();
+    }
+    
+    @Bean
+    PasswordEncoder passwordEncoder() {
+    	return new BCryptPasswordEncoder();
+    }
+    
+    @Bean
+    AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+    	return authenticationConfiguration.getAuthenticationManager();
     }
 }
